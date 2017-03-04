@@ -14,8 +14,6 @@ authorized_keys format
 ======================
 
 Same as OpenSSH authorized_keys format.
-Comment field contains the ports that are allowed to be forwarded, comma
-separated::
+The options field contains the ports that are allowed to be forwarded, colon separated::
 
-    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHPWEWu85yECrbmtL38wlFua3tBSqxTekCX/aU+dku+w 3333,3334
-
+    ports=3333:4444 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHPWEWu85yECrbmtL38wlFua3tBSqxTekCX/aU+dku+w COMMENTHERE

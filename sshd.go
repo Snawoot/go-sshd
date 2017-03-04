@@ -140,6 +140,7 @@ func handleChannel(newChannel ssh.NewChannel, ports []uint32) {
 
 	if !ok {
 		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad port"))
+		log.Printf("Tried to forward prohibited port: %d", payload.Port)
 		return
 	}
 
@@ -184,7 +185,7 @@ func handleChannel(newChannel ssh.NewChannel, ports []uint32) {
 }
 
 func parsePorts(portstr string) (p []uint32, err error) {
-	ports := strings.Split(portstr, ",")
+	ports := strings.Split(portstr, ":")
 	for _, port := range ports {
 		port, err := strconv.ParseUint(port, 10, 32)
 		if err != nil {
@@ -203,11 +204,24 @@ func loadAuthorisedKeys(authorisedkeys string) {
 	}
 
 	for len(authorisedKeysBytes) > 0 {
-		pubkey, ports, _, rest, err := ssh.ParseAuthorizedKey(authorisedKeysBytes)
+		pubkey, _, options, rest, err := ssh.ParseAuthorizedKey(authorisedKeysBytes)
 
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		log.Println("Options:", options)
+		if len(options) != 1 {
+			log.Fatal(fmt.Errorf("Only one option is accepted: 'ports=...'"))
+		}
+
+		option := options[0]
+
+		if !strings.HasPrefix(option, "ports=") {
+			log.Fatal(fmt.Errorf("Options does not start with 'ports='"))
+		}
+
+		ports := option[len("ports="):]
 
 		_, err = parsePorts(ports)
 
