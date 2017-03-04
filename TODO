@@ -1,0 +1,2 @@
+* Make sure to not run this as root (setuid doesn't work well), so use NET capabilities
+* Check assertions and TODOs.
