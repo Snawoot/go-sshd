@@ -1,4 +1,9 @@
 * Make sure to not run this as root (setuid doesn't work well), so use NET capabilities
 * Check assertions and TODOs.
-* Put ports to be allowed in options field, not in comments.
+* Look if/where we want to set deadlines on open sockets
+* Go through all log.Println calls, and make sure they are unique(?) and
+  sensible, and are not too verbose, and/or hidden behind *verbose
+* FILTER for forwarded ports
+* Change format of authorized_keys to allow for both forwarded and direct filtering
 * Put device identifier in comments.
+* Add some client identifier to log messages
