@@ -243,6 +243,7 @@ func handleTcpIpForward(conn *ssh.ServerConn, req *ssh.Request) {
 
 	// TODO: We currently bind to localhost:port, and not to :port
 	// Need to figure out what we want - perhaps just part of policy
+	//bind := fmt.Sprintf(":%d", lport)
 	bind := fmt.Sprintf("%s:%d", laddr, lport)
 	ln, err := net.Listen("tcp", bind)
 	if err != nil {
@@ -275,21 +276,23 @@ func handleTcpIpForward(conn *ssh.ServerConn, req *ssh.Request) {
 		for {
 			lconn, err := ln.Accept()
 			if err != nil {
-				log.Println("Accept failed")
+				neterr := err.(net.Error)
+				if neterr.Timeout() {
+					log.Println("Accept failed with timeout:", err)
+					continue
+				}
+				if neterr.Temporary() {
+					log.Println("Accept failed with temporary:", err)
+					continue
+				}
+
 				break
 			}
 
 			go func() {
-				remoteaddr := lconn.RemoteAddr().String()
-
-				p_index := strings.LastIndex(remoteaddr, ":")
-				raddr := remoteaddr[:p_index]
-				rport, err := strconv.ParseUint(remoteaddr[p_index+1:], 10, 32)
-				if err != nil {
-					log.Printf("Unable to parse RemoteAddr! (%s)", err)
-					lconn.Close()
-					return
-				}
+				remotetcpaddr := lconn.RemoteAddr().(*net.TCPAddr)
+				raddr := remotetcpaddr.IP.String()
+				rport := uint32(remotetcpaddr.Port)
 
 				payload := forwardedTCPPayload{laddr, lport, raddr, uint32(rport)}
 				mpayload := ssh.Marshal(&payload)
@@ -317,6 +320,7 @@ func handleTcpIPForwardCancel(req *ssh.Request) {
 		req.Reply(false, []byte{})
 	}
 
+	//bound := fmt.Sprintf(":%d", payload.Port)
 	bound := fmt.Sprintf("%s:%d", payload.Addr, payload.Port)
 
 	if listener, found := globalListens[bound]; found {
