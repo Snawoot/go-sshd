@@ -92,46 +92,30 @@ func main() {
 			log.Printf("Failed to accept incoming connection (%s)", err)
 			continue
 		}
-		// Before use, a handshake must be performed on the incoming net.Conn.
-		sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, config)
-		if err != nil {
-			log.Printf("Failed to handshake (%s)", err)
-			continue
-		}
 
-		allowedPorts := sshConn.Permissions.CriticalOptions["ports"]
-
-		if *verbose {
-			log.Printf("Connection from %s (%s). Allowed ports: %s", sshConn.RemoteAddr(), sshConn.ClientVersion(), allowedPorts)
-		}
-
-		// Parsing a second time should not error, so we can ignore the error
-		// safely
-		ports, _ := parsePorts(allowedPorts)
-
-		// Handle global out-of-band Requests
 		go func() {
-			for req := range reqs {
-				if *verbose {
-					log.Println("Out of band request:", req.Type, req.WantReply)
-				}
-
-				// RFC4254: 7.1 for forwarding
-				if req.Type == "tcpip-forward" {
-					handleTcpIpForward(sshConn, req)
-					continue
-				} else if req.Type == "cancel-tcpip-forward" {
-					handleTcpIPForwardCancel(req)
-					continue
-				} else {
-					// Discard everything else
-					req.Reply(false, []byte{})
-				}
+			// TODO: Run this in goroutine and have the rest block on it
+			sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, config)
+			if err != nil {
+				log.Printf("Failed to handshake (%s)", err)
+				return
 			}
-		}()
 
-		// Accept all channels
-		go handleChannels(chans, ports)
+			allowedPorts := sshConn.Permissions.CriticalOptions["ports"]
+
+			if *verbose {
+				log.Printf("Connection from %s (%s). Allowed ports: %s", sshConn.RemoteAddr(), sshConn.ClientVersion(), allowedPorts)
+			}
+
+			// Parsing a second time should not error, so we can ignore the error
+			// safely
+			ports, _ := parsePorts(allowedPorts)
+
+			go handleRequest(sshConn, reqs)
+
+			// Accept all channels
+			go handleChannels(chans, ports)
+		}()
 	}
 }
 
@@ -195,7 +179,7 @@ func handleDirect(newChannel ssh.NewChannel, ports []uint32) {
 		return
 	}
 
-	// At this point, we have the opportunity to reject the clients
+	// At this point, we have the opportunity to reject the client's
 	// request for another logical connection
 	connection, requests, err := newChannel.Accept()
 	if err != nil {
@@ -289,6 +273,7 @@ func handleTcpIpForward(conn *ssh.ServerConn, req *ssh.Request) {
 				break
 			}
 
+			// TODO: Sep function?
 			go func() {
 				remotetcpaddr := lconn.RemoteAddr().(*net.TCPAddr)
 				raddr := remotetcpaddr.IP.String()
@@ -413,5 +398,25 @@ func loadAuthorisedKeys(authorisedkeys string) {
 
 		authorisedKeys[string(pubkey.Marshal())] = ports
 		authorisedKeysBytes = rest
+	}
+}
+
+func handleRequest(sshConn *ssh.ServerConn, reqs <-chan *ssh.Request) {
+	for req := range reqs {
+		if *verbose {
+			log.Println("Out of band request:", req.Type, req.WantReply)
+		}
+
+		// RFC4254: 7.1 for forwarding
+		if req.Type == "tcpip-forward" {
+			handleTcpIpForward(sshConn, req)
+			continue
+		} else if req.Type == "cancel-tcpip-forward" {
+			handleTcpIPForwardCancel(req)
+			continue
+		} else {
+			// Discard everything else
+			req.Reply(false, []byte{})
+		}
 	}
 }
