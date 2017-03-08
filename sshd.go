@@ -196,15 +196,7 @@ func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 		return
 	}
 
-	ok := false
-	for _, port := range client.AllowedLocalPorts {
-		if payload.Port == port {
-			ok = true
-			break
-		}
-	}
-
-	if !ok {
+	if !portPermitted(payload.Port, client.AllowedLocalPorts) {
 		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad port"))
 		log.Printf("Tried to connect to prohibited port: %d", payload.Port)
 		return
@@ -252,15 +244,7 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 		return nil, nil, fmt.Errorf("Address is not permitted")
 	}
 
-	ok := false
-	for _, port := range client.AllowedRemotePorts {
-		if payload.Port == port {
-			ok = true
-			break
-		}
-	}
-
-	if !ok {
+	if !portPermitted(payload.Port, client.AllowedRemotePorts) {
 		log.Printf("Port is not permitted.")
 		req.Reply(false, []byte{})
 		return nil, nil, fmt.Errorf("Port is not permitted")
@@ -460,4 +444,16 @@ func handleRequest(client *sshClient, reqs <-chan *ssh.Request) {
 			req.Reply(false, []byte{})
 		}
 	}
+}
+
+func portPermitted(port uint32, ports []uint32) bool {
+	ok := false
+	for _, p := range ports {
+		if port == p {
+			ok = true
+			break
+		}
+	}
+
+	return ok
 }
