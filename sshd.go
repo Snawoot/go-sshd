@@ -105,7 +105,6 @@ func main() {
 		}
 
 		go func() {
-			// TODO: Run this in goroutine and have the rest block on it
 			sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, config)
 			if err != nil {
 				log.Printf("Failed to handshake (%s)", err)
@@ -144,7 +143,7 @@ func main() {
 
 			go handleRequest(&client, reqs)
 
-			// Accept all channels (TODO: Pass client)
+			// Accept all channels
 			go handleChannels(&client, chans)
 		}()
 	}
