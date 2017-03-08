@@ -252,7 +252,19 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 		return nil, nil, fmt.Errorf("Address is not permitted")
 	}
 
-	// TODO: Check port
+	ok := false
+	for _, port := range client.AllowedRemotePorts {
+		if payload.Port == port {
+			ok = true
+			break
+		}
+	}
+
+	if !ok {
+		log.Printf("Port is not permitted.")
+		req.Reply(false, []byte{})
+		return nil, nil, fmt.Errorf("Port is not permitted")
+	}
 
 	laddr := payload.Addr
 	lport := payload.Port
@@ -294,7 +306,6 @@ func handleListener(client *sshClient, bindinfo *bindInfo, listener net.Listener
 			break
 		}
 
-		// TODO: I don't think a goroutine is required here
 		go handleForwardTcpIp(client, bindinfo, lconn)
 	}
 }
