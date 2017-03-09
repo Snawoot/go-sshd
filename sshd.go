@@ -148,7 +148,6 @@ func main() {
 			}()
 
 			go handleRequest(&client, reqs)
-
 			// Accept all channels
 			go handleChannels(&client, chans)
 		}()
@@ -207,8 +206,6 @@ func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 		return
 	}
 
-	// At this point, we have the opportunity to reject the client's
-	// request for another logical connection
 	connection, requests, err := newChannel.Accept()
 	if err != nil {
 		log.Printf("Could not accept channel (%s)", err)
@@ -343,6 +340,8 @@ func handleTcpIPForwardCancel(client *sshClient, req *ssh.Request) {
 }
 
 func serve(cssh ssh.Channel, conn net.Conn) {
+	// TODO: Maybe just do this with defer instead? (And only one copy in a
+	// goroutine)
 	close := func() {
 		cssh.Close()
 		conn.Close()
@@ -390,9 +389,7 @@ func loadAuthorisedKeys(authorisedkeys string) {
 			log.Fatal(err)
 		}
 
-		devinfo := deviceInfo{
-			Comment: comment,
-		}
+		devinfo := deviceInfo{Comment: comment}
 
 		for _, option := range options {
 			ports, err := parseOption(option, "local")
@@ -457,12 +454,9 @@ func parseOption(option string, prefix string) (string, error) {
 	if !strings.HasPrefix(option, str) {
 		return "", fmt.Errorf("Option does not start with %s", str)
 	}
-
 	ports := option[len(str):]
 
-	_, err := parsePorts(ports)
-
-	if err != nil {
+	if _, err := parsePorts(ports); err != nil {
 		log.Fatal(err)
 	}
 
