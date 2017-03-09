@@ -239,9 +239,10 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 		return nil, nil, fmt.Errorf("Unable to parse payload")
 	}
 
-	log.Println("Request:", req.Type, req.WantReply, payload)
-
-	log.Printf("Request to listen on %s:%d", payload.Addr, payload.Port)
+	if *verbose {
+		log.Println("Request:", req.Type, req.WantReply, payload)
+		log.Printf("Request to listen on %s:%d", payload.Addr, payload.Port)
+	}
 
 	if payload.Addr != "localhost" {
 		log.Printf("Payload address is not \"localhost\"")
@@ -388,8 +389,6 @@ func loadAuthorisedKeys(authorisedkeys string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-
-		log.Println("Options:", options)
 
 		devinfo := deviceInfo{
 			Comment: comment,
