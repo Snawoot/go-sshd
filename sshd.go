@@ -391,13 +391,15 @@ func loadAuthorisedKeys(authorisedkeys string) {
 
 		devinfo := deviceInfo{Comment: comment}
 
+		// TODO: Compatibility with permitopen=foo,permitopen=bar,
+		// permitremoteopen=quux,permitremoteopen=wobble
 		for _, option := range options {
-			ports, err := parseOption(option, "local")
+			ports, err := parseOption(option, "localports")
 			if err == nil {
 				devinfo.LocalPorts = ports
 				continue
 			}
-			ports, err := parseOption(option, "remote")
+			ports, err = parseOption(option, "remoteports")
 			if err == nil {
 				devinfo.RemotePorts = ports
 				continue
@@ -452,7 +454,7 @@ func portPermitted(port uint32, ports []uint32) bool {
 }
 
 func parseOption(option string, prefix string) (string, error) {
-	str := fmt.Sprintf("%sports=", prefix)
+	str := fmt.Sprintf("%s=", prefix)
 	if !strings.HasPrefix(option, str) {
 		return "", fmt.Errorf("Option does not start with %s", str)
 	}
