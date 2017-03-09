@@ -393,15 +393,17 @@ func loadAuthorisedKeys(authorisedkeys string) {
 
 		for _, option := range options {
 			ports, err := parseOption(option, "local")
-			if err != nil {
-				ports, err := parseOption(option, "remote")
-				if err != nil {
-					log.Fatal(err)
-				} else {
-					devinfo.RemotePorts = ports
-				}
-			} else {
+			if err == nil {
 				devinfo.LocalPorts = ports
+				continue
+			}
+			ports, err := parseOption(option, "remote")
+			if err == nil {
+				devinfo.RemotePorts = ports
+				continue
+			}
+			if *verbose {
+				log.Println("Unknown option:", option)
 			}
 		}
 
