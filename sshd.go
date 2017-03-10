@@ -386,7 +386,9 @@ func loadAuthorisedKeys(authorisedkeys string) {
 		pubkey, comment, options, rest, err := ssh.ParseAuthorizedKey(authorisedKeysBytes)
 
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("Error parsing line: %s", err)
+			authorisedKeysBytes = rest
+			continue
 		}
 
 		devinfo := deviceInfo{Comment: comment}
