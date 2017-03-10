@@ -241,8 +241,8 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 		log.Printf("Request to listen on %s:%d", payload.Addr, payload.Port)
 	}
 
-	if payload.Addr != "localhost" {
-		log.Printf("Payload address is not \"localhost\"")
+	if payload.Addr != "localhost" && payload.Addr != "" {
+		log.Printf("Payload address is not \"localhost\" or empty")
 		req.Reply(false, []byte{})
 		return nil, nil, fmt.Errorf("Address is not permitted")
 	}
@@ -256,9 +256,6 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 	laddr := payload.Addr
 	lport := payload.Port
 
-	// TODO: We currently bind to localhost:port, and not to :port
-	// Need to figure out what we want - perhaps just part of policy
-	//bind := fmt.Sprintf(":%d", lport)
 	bind := fmt.Sprintf("%s:%d", laddr, lport)
 	ln, err := net.Listen("tcp", bind)
 	if err != nil {
