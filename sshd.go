@@ -21,8 +21,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// TODO: Use defer where useful
-
 var (
 	authorisedKeys map[string]deviceInfo
 
@@ -437,7 +435,6 @@ func registerReloadSignal() {
 
 	go func() {
 		for sig := range c {
-			_ = sig
 			log.Printf("Received signal: \"%s\". Reloading authorised keys.", sig.String())
 			loadAuthorisedKeys(*authorisedkeys)
 		}
