@@ -23,6 +23,7 @@ import (
 var (
 	authorisedKeys map[string]deviceInfo
 
+	listenaddr     = flag.String("listenaddr", "0.0.0.0", "Addr to listen on for incoming ssh connections")
 	listenport     = flag.Int("listenport", 2200, "Port to listen on for incoming ssh connections")
 	hostkey        = flag.String("hostkey", "id_rsa", "Server host key to load")
 	authorisedkeys = flag.String("authorisedkeys", "authorized_keys", "Authorised keys")
@@ -98,7 +99,7 @@ func main() {
 	loadHostKeys(config)
 	loadAuthorisedKeys(*authorisedkeys)
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *listenport))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *listenaddr, *listenport))
 	if err != nil {
 		log.Fatalf("Failed to listen on %s (%s)", listenport, err)
 	}
