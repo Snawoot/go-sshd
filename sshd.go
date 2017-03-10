@@ -134,7 +134,7 @@ func main() {
 			allowedRemotePorts := sshConn.Permissions.CriticalOptions["remoteports"]
 
 			if *verbose {
-				log.Printf("Connection from %s, %s (%s). Allowed local ports: %s remote ports: %s", client.Name, sshConn.RemoteAddr(), sshConn.ClientVersion(), allowedLocalPorts, allowedRemotePorts)
+				log.Printf("Connection from \"%s\", %s (%s). Allowed local ports: %s remote ports: %s", client.Name, sshConn.RemoteAddr(), sshConn.ClientVersion(), allowedLocalPorts, allowedRemotePorts)
 			}
 
 			// Parsing a second time should not error, so we can ignore the error
