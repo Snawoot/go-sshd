@@ -225,7 +225,7 @@ func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 		return
 	}
 
-	serve(connection, rconn)
+	serve(connection, rconn, client)
 }
 
 func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bindInfo, error) {
@@ -310,9 +310,12 @@ func handleForwardTcpIp(client *sshClient, bindinfo *bindInfo, lconn net.Conn) {
 		lconn.Close()
 		return
 	}
+	if *verbose {
+		log.Printf("Channel opened for client %s", client.Name)
+	}
 	go ssh.DiscardRequests(requests)
 
-	serve(c, lconn)
+	serve(c, lconn, client)
 }
 
 func handleTcpIPForwardCancel(client *sshClient, req *ssh.Request) {
@@ -336,14 +339,14 @@ func handleTcpIPForwardCancel(client *sshClient, req *ssh.Request) {
 	req.Reply(false, []byte{})
 }
 
-func serve(cssh ssh.Channel, conn net.Conn) {
+func serve(cssh ssh.Channel, conn net.Conn, client *sshClient) {
 	// TODO: Maybe just do this with defer instead? (And only one copy in a
 	// goroutine)
 	close := func() {
 		cssh.Close()
 		conn.Close()
 		if *verbose {
-			log.Printf("Channel closed")
+			log.Printf("Channel closed for client: %s", client.Name)
 		}
 	}
 
