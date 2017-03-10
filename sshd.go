@@ -365,7 +365,7 @@ func serve(cssh ssh.Channel, conn net.Conn, client *sshClient) {
 func loadHostKeys(config *ssh.ServerConfig) {
 	privateBytes, err := ioutil.ReadFile(*hostkey)
 	if err != nil {
-		log.Fatal("Failed to load private key (./id_rsa)")
+		log.Fatal(fmt.Sprintf("Failed to load private key (%s)", *hostkey))
 	}
 
 	private, err := ssh.ParsePrivateKey(privateBytes)
