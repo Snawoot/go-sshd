@@ -30,8 +30,7 @@ var (
 	authorisedkeys = flag.String("authorisedkeys", "authorized_keys", "Authorised keys")
 	verbose        = flag.Bool("verbose", false, "Enable verbose mode")
 
-	authmutex   sync.Mutex
-	listenmutex sync.Mutex
+	authmutex sync.Mutex
 )
 
 type sshClient struct {
@@ -41,6 +40,7 @@ type sshClient struct {
 	AllowedLocalPorts  []uint32
 	AllowedRemotePorts []uint32
 	Stopping           bool
+	ListenMutex        sync.Mutex
 }
 
 type bindInfo struct {
@@ -129,7 +129,7 @@ func main() {
 				return
 			}
 
-			client := sshClient{sshConn.Permissions.CriticalOptions["name"], sshConn, make(map[string]net.Listener), nil, nil, false}
+			client := sshClient{sshConn.Permissions.CriticalOptions["name"], sshConn, make(map[string]net.Listener), nil, nil, false, sync.Mutex{}}
 			allowedLocalPorts := sshConn.Permissions.CriticalOptions["localports"]
 			allowedRemotePorts := sshConn.Permissions.CriticalOptions["remoteports"]
 
@@ -144,7 +144,7 @@ func main() {
 
 			go func() {
 				err := client.Conn.Wait()
-				listenmutex.Lock()
+				client.ListenMutex.Lock()
 				client.Stopping = true
 
 				if *verbose {
@@ -156,7 +156,7 @@ func main() {
 					}
 					listener.Close()
 				}
-				listenmutex.Unlock()
+				client.ListenMutex.Unlock()
 			}()
 
 			go handleRequest(&client, reqs)
@@ -454,29 +454,29 @@ func handleRequest(client *sshClient, reqs <-chan *ssh.Request) {
 
 		// RFC4254: 7.1 for forwarding
 		if req.Type == "tcpip-forward" {
-			listenmutex.Lock()
+			client.ListenMutex.Lock()
 			/* If we are closing, do not set up a new listener */
 			if client.Stopping {
-				listenmutex.Unlock()
+				client.ListenMutex.Unlock()
 				req.Reply(false, []byte{})
 				continue
 			}
 
 			listener, bindinfo, err := handleTcpIpForward(client, req)
 			if err != nil {
-				listenmutex.Unlock()
+				client.ListenMutex.Unlock()
 				continue
 			}
 
 			client.Listeners[bindinfo.Bound] = listener
-			listenmutex.Unlock()
+			client.ListenMutex.Unlock()
 
 			go handleListener(client, bindinfo, listener)
 			continue
 		} else if req.Type == "cancel-tcpip-forward" {
-			listenmutex.Lock()
+			client.ListenMutex.Lock()
 			handleTcpIPForwardCancel(client, req)
-			listenmutex.Unlock()
+			client.ListenMutex.Unlock()
 			continue
 		} else {
 			// Discard everything else
