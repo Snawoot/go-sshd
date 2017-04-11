@@ -30,7 +30,8 @@ var (
 	authorisedkeys = flag.String("authorisedkeys", "authorized_keys", "Authorised keys")
 	verbose        = flag.Bool("verbose", false, "Enable verbose mode")
 
-	authmutex sync.Mutex
+	authmutex   sync.Mutex
+	listenmutex sync.Mutex
 )
 
 type sshClient struct {
@@ -39,6 +40,7 @@ type sshClient struct {
 	Listeners          map[string]net.Listener
 	AllowedLocalPorts  []uint32
 	AllowedRemotePorts []uint32
+	Stopping           bool
 }
 
 type bindInfo struct {
@@ -87,9 +89,9 @@ func main() {
 
 	config := &ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			authmutex.Lock()
+			defer authmutex.Unlock()
 			if deviceinfo, found := authorisedKeys[string(key.Marshal())]; found {
-				authmutex.Lock()
-				defer authmutex.Unlock()
 				return &ssh.Permissions{
 					CriticalOptions: map[string]string{"name": deviceinfo.Comment,
 						"localports":  deviceinfo.LocalPorts,
@@ -127,7 +129,7 @@ func main() {
 				return
 			}
 
-			client := sshClient{sshConn.Permissions.CriticalOptions["name"], sshConn, make(map[string]net.Listener), nil, nil}
+			client := sshClient{sshConn.Permissions.CriticalOptions["name"], sshConn, make(map[string]net.Listener), nil, nil, false}
 			allowedLocalPorts := sshConn.Permissions.CriticalOptions["localports"]
 			allowedRemotePorts := sshConn.Permissions.CriticalOptions["remoteports"]
 
@@ -142,17 +144,19 @@ func main() {
 
 			go func() {
 				err := client.Conn.Wait()
+				listenmutex.Lock()
+				client.Stopping = true
+
 				if *verbose {
 					log.Printf("SSH connection closed for client %s: %s", client.Name, err)
 				}
-				// TODO: Make this safe? Is it impossible for cancel code to be
-				// running at this point?
 				for bind, listener := range client.Listeners {
 					if *verbose {
 						log.Printf("Closing listener bound to %s", bind)
 					}
 					listener.Close()
 				}
+				listenmutex.Unlock()
 			}()
 
 			go handleRequest(&client, reqs)
@@ -450,16 +454,29 @@ func handleRequest(client *sshClient, reqs <-chan *ssh.Request) {
 
 		// RFC4254: 7.1 for forwarding
 		if req.Type == "tcpip-forward" {
+			listenmutex.Lock()
+			/* If we are closing, do not set up a new listener */
+			if client.Stopping {
+				listenmutex.Unlock()
+				req.Reply(false, []byte{})
+				continue
+			}
+
 			listener, bindinfo, err := handleTcpIpForward(client, req)
 			if err != nil {
+				listenmutex.Unlock()
 				continue
 			}
 
 			client.Listeners[bindinfo.Bound] = listener
+			listenmutex.Unlock()
+
 			go handleListener(client, bindinfo, listener)
 			continue
 		} else if req.Type == "cancel-tcpip-forward" {
+			listenmutex.Lock()
 			handleTcpIPForwardCancel(client, req)
+			listenmutex.Unlock()
 			continue
 		} else {
 			// Discard everything else
