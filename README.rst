@@ -17,3 +17,13 @@ Same as OpenSSH authorized_keys format.
 The options field contains the ports that are allowed to be forwarded, colon separated::
 
     ports=3333:4444 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHPWEWu85yECrbmtL38wlFua3tBSqxTekCX/aU+dku+w COMMENTHERE
+
+Running as non-root user
+========================
+
+You should not run this program as root. Due to the way Go is implemented,
+setuid is non-trivial, so instead you need to set the CAP_NET_BIND_SERVICE
+capability on the resulting binary:
+
+    setcap 'cap_net_bind_service=+ep' go-sshd
+
