@@ -1,0 +1,39 @@
+#!/sbin/openrc-run
+# Copyright 1999-2017 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+
+description="Go Secure Shell server"
+description_reload="Reload configuration"
+
+extra_started_commands="reload"
+
+: ${SSHD_PIDFILE:=/run/${SVCNAME}.pid}
+: ${SSHD_BINARY:=/usr/local/bin/go-sshd}
+: ${SSHD_LISTEN:="-listenaddr :1 -listenport 8822"}
+: ${SSHD_LOG:="/var/log/mcs/${SVCNAME}"}
+
+start() {
+        ebegin "Starting ${SVCNAME}"
+        start-stop-daemon --start --exec "${SSHD_BINARY}" \
+            --make-pidfile --pidfile "${SSHD_PIDFILE}" \
+            --background \
+            --user ${SSHD_USER} --group ${SSHD_GROUP} \
+            --stderr "${SSHD_LOG}" \
+            -- ${SSHD_OPTS} ${SSHD_LISTEN} -hostkey /etc/go-sshd/tunnel \
+            -authorisedkeys /etc/go-sshd/authorized_keys
+        eend $?
+}
+
+stop() {
+        ebegin "Stopping ${SVCNAME}"
+        start-stop-daemon --stop --exec "${SSHD_BINARY}" \
+            --pidfile "${SSHD_PIDFILE}" --quiet
+        eend $?
+}
+
+reload() {
+        ebegin "Reloading ${SVCNAME}"
+        start-stop-daemon --signal USR1 \
+            --exec "${SSHD_BINARY}" --pidfile "${SSHD_PIDFILE}"
+        eend $?
+}

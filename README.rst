@@ -27,3 +27,8 @@ capability on the resulting binary:
 
     setcap 'cap_net_bind_service=+ep' go-sshd
 
+Init script
+===========
+
+There is an init script for gentoo/alpine (OpenRC) users. SSHD_LISTEN needs to
+be set in /etc/conf.d/go-sshd and the init-script goes in /etc/init.d/go-sshd
