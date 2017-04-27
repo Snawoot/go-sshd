@@ -206,12 +206,14 @@ func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 		return
 	}
 
-	// XXX: Is this sensible?
-	if payload.Addr != "localhost" && payload.Addr != "::1" && payload.Addr != "127.0.0.1" {
-		log.Printf("[%s] Tried to connect to prohibited host: %s", client.Name, payload.Addr)
-		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad addr"))
-		return
-	}
+	/*
+		// XXX: Is this sensible?
+		if payload.Addr != "localhost" && payload.Addr != "::1" && payload.Addr != "127.0.0.1" {
+			log.Printf("[%s] Tried to connect to prohibited host: %s", client.Name, payload.Addr)
+			newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad addr"))
+			return
+		}
+	*/
 
 	if !portPermitted(payload.Port, client.AllowedLocalPorts) {
 		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad port"))
