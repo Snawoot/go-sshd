@@ -125,7 +125,7 @@ func main() {
 		go func() {
 			sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, config)
 			if err != nil {
-				log.Printf("Failed to handshake (%s)", err)
+				log.Printf("Failed to handshake: %s (rip: %v)", err, tcpConn.RemoteAddr())
 				return
 			}
 
@@ -134,7 +134,7 @@ func main() {
 			allowedRemotePorts := sshConn.Permissions.CriticalOptions["remoteports"]
 
 			if *verbose {
-				log.Printf("Connection from \"%s\", %s (%s). Allowed local ports: %s remote ports: %s", client.Name, sshConn.RemoteAddr(), sshConn.ClientVersion(), allowedLocalPorts, allowedRemotePorts)
+				log.Printf("[%s] Connection from %s (%s). Allowed local ports: %s remote ports: %s", client.Name, sshConn.RemoteAddr(), sshConn.ClientVersion(), allowedLocalPorts, allowedRemotePorts)
 			}
 
 			// Parsing a second time should not error, so we can ignore the error
@@ -148,11 +148,11 @@ func main() {
 				client.Stopping = true
 
 				if *verbose {
-					log.Printf("SSH connection closed for client %s: %s", client.Name, err)
+					log.Printf("[%s] SSH connection closed: %s", client.Name, err)
 				}
 				for bind, listener := range client.Listeners {
 					if *verbose {
-						log.Printf("Closing listener bound to %s", bind)
+						log.Printf("[%s] Closing listener bound to %s", client.Name, bind)
 					}
 					listener.Close()
 				}
@@ -174,14 +174,14 @@ func handleChannels(client *sshClient, chans <-chan ssh.NewChannel) {
 
 func handleChannel(client *sshClient, newChannel ssh.NewChannel) {
 	if *verbose {
-		log.Println("Channel type:", newChannel.ChannelType())
+		log.Printf("[%s] Channel type: %v", client.Name, newChannel.ChannelType())
 	}
 	if t := newChannel.ChannelType(); t == "direct-tcpip" {
 		handleDirect(client, newChannel)
 		return
 	}
 
-	newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Only \"direct-tcpip\" is accepted"))
+	newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Only \"direct-tcpip\", \"forwarded-tcpip\" and \"cancel-tcpip-forward\" are accepted"))
 	/*
 		// TODO: USE THIS ONLY FOR USING SSH ESCAPE SEQUENCES
 		c, _, err := newChannel.Accept()
@@ -200,39 +200,40 @@ func handleChannel(client *sshClient, newChannel ssh.NewChannel) {
 func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 	var payload directTCPPayload
 	if err := ssh.Unmarshal(newChannel.ExtraData(), &payload); err != nil {
-		log.Printf("Could not unmarshal extra data: %s\n", err)
+		log.Printf("[%s] Could not unmarshal extra data: %s", client.Name, err)
 
 		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad payload"))
 		return
 	}
 
-	if payload.Addr != "localhost" {
-		log.Printf("Tried to connect to prohibited host: %s", payload.Addr)
+	// XXX: Is this sensible?
+	if payload.Addr != "localhost" && payload.Addr != "::1" && payload.Addr != "127.0.0.1" {
+		log.Printf("[%s] Tried to connect to prohibited host: %s", client.Name, payload.Addr)
 		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad addr"))
 		return
 	}
 
 	if !portPermitted(payload.Port, client.AllowedLocalPorts) {
 		newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Bad port"))
-		log.Printf("Tried to connect to prohibited port: %d", payload.Port)
+		log.Printf("[%s] Tried to connect to prohibited port: %d", client.Name, payload.Port)
 		return
 	}
 
 	connection, requests, err := newChannel.Accept()
 	if err != nil {
-		log.Printf("Could not accept channel (%s)", err)
+		log.Printf("[%s] Could not accept channel (%s)", client.Name, err)
 		return
 	}
 	go ssh.DiscardRequests(requests)
 
 	addr := fmt.Sprintf("%s:%d", payload.Addr, payload.Port)
 	if *verbose {
-		log.Println("Dialing:", addr)
+		log.Printf("[%s] Dialing: %s", client.Name, addr)
 	}
 
 	rconn, err := net.Dial("tcp", addr)
 	if err != nil {
-		log.Printf("Could not dial remote (%s)", err)
+		log.Printf("[%s] Could not dial remote (%s)", client.Name, err)
 		connection.Close()
 		return
 	}
@@ -243,24 +244,24 @@ func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bindInfo, error) {
 	var payload tcpIpForwardPayload
 	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
-		log.Println("Unable to unmarshal payload")
+		log.Printf("[%s] Unable to unmarshal payload", client.Name)
 		req.Reply(false, []byte{})
 		return nil, nil, fmt.Errorf("Unable to parse payload")
 	}
 
 	if *verbose {
-		log.Println("Request:", req.Type, req.WantReply, payload)
-		log.Printf("Request to listen on %s:%d", payload.Addr, payload.Port)
+		log.Printf("[%s] Request: %s %v %v", client.Name, req.Type, req.WantReply, payload)
+		log.Printf("[%s] Request to listen on %s:%d", client.Name, payload.Addr, payload.Port)
 	}
 
 	if payload.Addr != "localhost" && payload.Addr != "" {
-		log.Printf("Payload address is not \"localhost\" or empty")
+		log.Printf("[%s] Payload address is not \"localhost\" or empty: %s", client.Name, payload.Addr)
 		req.Reply(false, []byte{})
 		return nil, nil, fmt.Errorf("Address is not permitted")
 	}
 
 	if !portPermitted(payload.Port, client.AllowedRemotePorts) {
-		log.Printf("Port is not permitted.")
+		log.Printf("[%s] Port is not permitted: %d", client.Name, payload.Port)
 		req.Reply(false, []byte{})
 		return nil, nil, fmt.Errorf("Port is not permitted")
 	}
@@ -271,7 +272,7 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 	bind := fmt.Sprintf("%s:%d", laddr, lport)
 	ln, err := net.Listen("tcp", bind)
 	if err != nil {
-		log.Printf("Listen failed for %s", bind)
+		log.Printf("[%s] Listen failed for %s", client.Name, bind)
 		req.Reply(false, []byte{})
 		return nil, nil, err
 	}
@@ -291,11 +292,11 @@ func handleListener(client *sshClient, bindinfo *bindInfo, listener net.Listener
 		if err != nil {
 			neterr := err.(net.Error)
 			if neterr.Timeout() {
-				log.Println("Accept failed with timeout:", err)
+				log.Printf("[%s] Accept failed with timeout: %s", client.Name, err)
 				continue
 			}
 			if neterr.Temporary() {
-				log.Println("Accept failed with temporary:", err)
+				log.Printf("[%s] Accept failed with temporary: %s", client.Name, err)
 				continue
 			}
 
@@ -317,13 +318,12 @@ func handleForwardTcpIp(client *sshClient, bindinfo *bindInfo, lconn net.Conn) {
 	// Open channel with client
 	c, requests, err := client.Conn.OpenChannel("forwarded-tcpip", mpayload)
 	if err != nil {
-		log.Printf("Error: %s", err)
-		log.Println("Unable to get channel. Hanging up requesting party!")
+		log.Printf("[%s] Unable to get channel: %s. Hanging up requesting party!", client.Name, err)
 		lconn.Close()
 		return
 	}
 	if *verbose {
-		log.Printf("Channel opened for client %s", client.Name)
+		log.Printf("[%s] Channel opened for client", client.Name)
 	}
 	go ssh.DiscardRequests(requests)
 
@@ -332,11 +332,11 @@ func handleForwardTcpIp(client *sshClient, bindinfo *bindInfo, lconn net.Conn) {
 
 func handleTcpIPForwardCancel(client *sshClient, req *ssh.Request) {
 	if *verbose {
-		log.Println("Cancel called by client", client)
+		log.Printf("[%s] \"cancel-tcpip-forward\" called by client", client.Name)
 	}
 	var payload tcpIpForwardCancelPayload
 	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
-		log.Println("Unable to unmarshal cancel payload")
+		log.Printf("[%s] Unable to unmarshal cancel payload", client.Name)
 		req.Reply(false, []byte{})
 	}
 
@@ -358,7 +358,7 @@ func serve(cssh ssh.Channel, conn net.Conn, client *sshClient) {
 		cssh.Close()
 		conn.Close()
 		if *verbose {
-			log.Printf("Channel closed for client: %s", client.Name)
+			log.Printf("[%s] Channel closed.", client.Name)
 		}
 	}
 
@@ -439,8 +439,12 @@ func registerReloadSignal() {
 
 	go func() {
 		for sig := range c {
-			log.Printf("Received signal: \"%s\". Reloading authorised keys.", sig.String())
-			loadAuthorisedKeys(*authorisedkeys)
+			if sig == syscall.SIGUSR1 {
+				log.Printf("Received signal: SIGUSR1. Reloading authorised keys.")
+				loadAuthorisedKeys(*authorisedkeys)
+			} else {
+				log.Printf("Received unexpected signal: \"%s\".", sig.String())
+			}
 		}
 
 	}()
@@ -449,7 +453,7 @@ func registerReloadSignal() {
 func handleRequest(client *sshClient, reqs <-chan *ssh.Request) {
 	for req := range reqs {
 		if *verbose {
-			log.Println("Out of band request:", req.Type, req.WantReply)
+			log.Printf("[%s] Out of band request: %v %v", client.Name, req.Type, req.WantReply)
 		}
 
 		// RFC4254: 7.1 for forwarding
