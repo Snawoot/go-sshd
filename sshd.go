@@ -226,7 +226,7 @@ func handleDirect(client *sshClient, newChannel ssh.NewChannel) {
 	}
 	go ssh.DiscardRequests(requests)
 
-	addr := fmt.Sprintf("%s:%d", payload.Addr, payload.Port)
+	addr := fmt.Sprintf("[%s]:%d", payload.Addr, payload.Port)
 	if *verbose {
 		log.Printf("[%s] Dialing: %s", client.Name, addr)
 	}
