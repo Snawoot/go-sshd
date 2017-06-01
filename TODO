@@ -1,9 +1,0 @@
-* Make sure to not run this as root (setuid doesn't work well), so use NET capabilities
-* Allow limiting the hosts that one can connect to use direct-tcpip (right now
-  all hosts are allowed)
-* Allow lifting restrictions on what clients can bind on with forwarded-tcpip
-
-* Check assertions and TODOs.
-* Look if/where we want to set deadlines on open sockets
-* Go through all log.Println calls, and make sure they are unique(?) and
-  sensible, and are not too verbose, and/or hidden behind *verbose
