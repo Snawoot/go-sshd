@@ -30,6 +30,7 @@ var (
 	hostkey        = flag.String("hostkey", "id_rsa", "Server host key to load")
 	authorisedkeys = flag.String("authorisedkeys", "authorized_keys", "Authorised keys")
 	verbose        = flag.Bool("verbose", false, "Enable verbose mode")
+	debug          = flag.Bool("debug", false, "Enable debug mode")
 
 	// TODO: Separate for read/write? (Right now assume that on either
 	// read/write, reset deadline)
@@ -379,18 +380,40 @@ func serve(cssh ssh.Channel, conn net.Conn, client *sshClient, timeout time.Dura
 	var once sync.Once
 	go func() {
 		//io.Copy(cssh, conn)
-		_, _ = copyTimeout(cssh, conn, func() {
+		bytes_written, err := copyTimeout(cssh, conn, func() {
+			if *debug {
+				log.Printf("[%s] Updating deadline for direct|forwarded socket and main socket (sending data)", client.Name)
+			}
 			conn.SetDeadline(time.Now().Add(timeout))
 			client.Conn.SetDeadline(time.Now().Add(*maintimeout))
 		})
+		if err != nil {
+			if *debug {
+				log.Printf("[%s] copyTimeout failed with: %s", client.Name, err)
+			}
+		}
+		if *verbose {
+			log.Printf("[%s] Connection closed, bytes written: %d", client.Name, bytes_written)
+		}
 		once.Do(close)
 	}()
 	go func() {
 		//io.Copy(conn, cssh)
-		_, _ = copyTimeout(conn, cssh, func() {
+		bytes_written, err := copyTimeout(conn, cssh, func() {
+			if *debug {
+				log.Printf("[%s] Updating deadline for direct|forwarded socket and main socket (received data)", client.Name)
+			}
 			conn.SetDeadline(time.Now().Add(timeout))
 			client.Conn.SetDeadline(time.Now().Add(*maintimeout))
 		})
+		if err != nil {
+			if *debug {
+				log.Printf("[%s] copyTimeout failed with: %s", client.Name, err)
+			}
+		}
+		if *verbose {
+			log.Printf("[%s] Connection closed, bytes written: %d", client.Name, bytes_written)
+		}
 		once.Do(close)
 	}()
 }
