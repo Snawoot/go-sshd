@@ -428,8 +428,6 @@ func handleRequest(client *sshClient, reqs <-chan *ssh.Request) {
 }
 
 func serve(cssh ssh.Channel, conn net.Conn, client *sshClient, timeout time.Duration) {
-	// TODO: Maybe just do this with defer instead? (And only one copy in a
-	// goroutine)
 	close := func() {
 		cssh.Close()
 		conn.Close()
@@ -438,7 +436,6 @@ func serve(cssh ssh.Channel, conn net.Conn, client *sshClient, timeout time.Dura
 		}
 	}
 
-	// TODO: Share timeout between both the read-conn and the write-conn
 	var once sync.Once
 	go func() {
 		//io.Copy(cssh, conn)
