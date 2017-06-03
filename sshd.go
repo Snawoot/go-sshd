@@ -135,7 +135,8 @@ func main() {
 
 	registerReloadSignal()
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *listenaddr, *listenport))
+	bind := fmt.Sprintf("[%s]:%d", *listenaddr, *listenport)
+	listener, err := net.Listen("tcp", bind)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s (%s)", listenport, err)
 	}
@@ -304,7 +305,7 @@ func handleTcpIpForward(client *sshClient, req *ssh.Request) (net.Listener, *bin
 	laddr := payload.Addr
 	lport := payload.Port
 
-	bind := fmt.Sprintf("%s:%d", laddr, lport)
+	bind := fmt.Sprintf("[%s]:%d", laddr, lport)
 	ln, err := net.Listen("tcp", bind)
 	if err != nil {
 		log.Printf("[%s] Listen failed for %s", client.Name, bind)
