@@ -118,11 +118,11 @@ func main() {
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			authmutex.Lock()
 			defer authmutex.Unlock()
-			if deviceinfo, found := authorisedKeys[string(key.Marshal())]; found {
+			if clientinfo, found := authorisedKeys[string(key.Marshal())]; found {
 				return &ssh.Permissions{
-					CriticalOptions: map[string]string{"name": deviceinfo.Comment,
-						"localports":  deviceinfo.LocalPorts,
-						"remoteports": deviceinfo.RemotePorts},
+					CriticalOptions: map[string]string{"name": clientinfo.Comment,
+						"localports":  clientinfo.LocalPorts,
+						"remoteports": clientinfo.RemotePorts},
 				}, nil
 			}
 
@@ -174,6 +174,9 @@ func main() {
 			client.AllowedLocalPorts, _ = parsePorts(allowedLocalPorts)
 			client.AllowedRemotePorts, _ = parsePorts(allowedRemotePorts)
 
+			// Start the clean-up function: will wait for the socket to be
+			// closed (either by remote, protocol or deadline/timeout)
+			// and close any listeners if any
 			go func() {
 				err := client.SshConn.Wait()
 				client.ListenMutex.Lock()
@@ -213,7 +216,7 @@ func handleChannel(client *sshClient, newChannel ssh.NewChannel) {
 		return
 	}
 
-	newChannel.Reject(ssh.Prohibited, fmt.Sprintf("Only \"direct-tcpip\" is accepted"))
+	newChannel.Reject(ssh.Prohibited, "Only \"direct-tcpip\" is accepted")
 	/*
 		// XXX: Use this only for testing purposes -- I add this in if/when I
 		// want to use the ssh escape sequences from ssh (those only work in an
