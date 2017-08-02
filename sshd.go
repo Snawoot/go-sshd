@@ -180,18 +180,19 @@ func main() {
 			go func() {
 				err := client.SshConn.Wait()
 				client.ListenMutex.Lock()
+				defer client.ListenMutex.Unlock()
 				client.Stopping = true
 
 				if *verbose {
 					log.Printf("[%s] SSH connection closed: %s", client.Name, err)
 				}
+
 				for bind, listener := range client.Listeners {
 					if *verbose {
 						log.Printf("[%s] Closing listener bound to %s", client.Name, bind)
 					}
 					listener.Close()
 				}
-				client.ListenMutex.Unlock()
 			}()
 
 			// Accept requests & channels
