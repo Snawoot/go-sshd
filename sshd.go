@@ -577,6 +577,9 @@ func loadAuthorisedKeys(authorisedkeys string) {
 
 func portPermitted(port uint32, ports []uint32) bool {
 	ok := false
+	if len(ports) == 0 {
+		return true
+	}
 	for _, p := range ports {
 		if port == p {
 			ok = true
