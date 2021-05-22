@@ -58,3 +58,4 @@ Known issues / TODO
   combinations.
 * USR1 is not available on Windows, but otherwise the SSH server works fine on
   Windows (just comment out the signal-related parts)
+* https://github.com/golang/go/issues/37278
